@@ -15,7 +15,7 @@ type PlainConfig struct {
 func main() {
 	builder := cfg.NewBuilder[PlainConfig]()
 	builder = builder.With(cfg.CliArguments(os.Args[1:])).With(cfg.DisableEnv())
-	err := builder.Load("config.json")
+	err := builder.Load("examples/plain/config.json")
 	if err != nil {
 		panic(err)
 	}

@@ -7,7 +7,6 @@ import (
 	"io"
 	"os"
 	"reflect"
-	"strings"
 )
 
 type Builder[T any] interface {
@@ -18,30 +17,26 @@ type Builder[T any] interface {
 }
 
 type builderImpl[T any] struct {
-	opts   Options
-	config T
-	typ    reflect.Type
-	names  map[string]int
+	opts       Options
+	config     T
+	typ        reflect.Type
+	properties []*propertyImpl
 }
 
 func NewBuilder[T any](opts ...BuilderOption) Builder[T] {
 	var c T
 	r := reflect.TypeOf(c)
 	count := r.NumField()
-	names := make(map[string]int, count)
+	props := make([]*propertyImpl, 0, count)
 	for i := 0; i < count; i++ {
 		var field = r.Field(i)
-		val, ok := field.Tag.Lookup("json")
-		if ok {
-			vals := strings.Split(val, ",")
-			names[vals[0]] = i
-		}
+		props = append(props, newProperty(nil, field))
 	}
 	result := &builderImpl[T]{
-		config: c,
-		typ:    r,
-		names:  names,
-		opts:   newOptions(),
+		config:     c,
+		typ:        r,
+		properties: props,
+		opts:       newOptions(),
 	}
 	for _, option := range opts {
 		result.With(option)
@@ -113,43 +108,23 @@ func (b *builderImpl[T]) parseCliArguments(config *T, cliArgs []string, useFlags
 }
 
 func (b *builderImpl[T]) parseCliFlagArguments(rv reflect.Value, cliArgs []string) error {
-	for k, v := range b.names {
-		name := k
-		flag.CommandLine.String(name, "", "")
-		name = "p:" + k
-		flag.CommandLine.String(name, "", "")
-		name = "p:" + b.typ.Field(v).Name
-		flag.CommandLine.String(name, "", "")
+	for _, v := range b.properties {
+		for _, arg := range v.getCliArgumentNames() {
+			flag.CommandLine.String(arg, "", "")
+		}
 	}
 	err := flag.CommandLine.Parse(cliArgs)
 	if err != nil {
 		return err
 	}
-	for k, v := range b.names {
-		name := k
-		f := flag.CommandLine.Lookup(name)
-		if f != nil && f.Value.String() != "" {
-			value := reflect.ValueOf(f.Value.String())
-			rv.Field(v).Set(value)
-			continue
-		}
-		name = "p:" + k
-		f = flag.CommandLine.Lookup(name)
-		if f != nil && f.Value.String() != "" {
-			value := reflect.ValueOf(f.Value.String())
-			rv.Field(v).Set(value)
-			continue
-		}
-		name = "p:" + b.typ.Field(v).Name
-		f = flag.CommandLine.Lookup(name)
-		if f != nil && f.Value.String() != "" {
-			field := rv.Field(v)
-			if field.CanSet() {
-				field.SetString(f.Value.String())
-			} else {
-				field.SetString(f.Value.String())
+	for _, v := range b.properties {
+		for _, arg := range v.getCliArgumentNames() {
+			f := flag.CommandLine.Lookup(arg)
+			if f != nil && f.Value.String() != "" {
+				value := reflect.ValueOf(f.Value.String())
+				rv.FieldByIndex(v.path).Set(value)
+				break
 			}
-			continue
 		}
 	}
 	return nil
