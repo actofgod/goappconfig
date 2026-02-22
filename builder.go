@@ -63,7 +63,7 @@ func (b *builderImpl[T]) Load(fileName string) error {
 		return fmt.Errorf("'%s' is directory", fileName)
 	}
 	if s.Size() > b.opts.maxConfigFileSize {
-		return fmt.Errorf("file '%s' if to large for config file", fileName)
+		return fmt.Errorf("file '%s' is to large for config file", fileName)
 	}
 	fd, err := os.Open(fileName)
 	if err != nil {
