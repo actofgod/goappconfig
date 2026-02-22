@@ -10,12 +10,14 @@ import (
 type PlainConfig struct {
 	InputFile  string `json:"input_file" yaml:"input-file" arg:"input-file" short:"i" env:"INPUT_FILE"`
 	OutputFile string `json:"output_file" yaml:"output-file" arg:"output-file" short:"o" env:"OUTPUT_FILE"`
+	// IntValue parameter description
+	IntValue int `json:"int_value"`
 }
 
 func main() {
 	builder := cfg.NewBuilder[PlainConfig]()
 	builder = builder.With(cfg.CliArguments(os.Args[1:])).With(cfg.DisableEnv())
-	err := builder.Load("examples/plain/config.json")
+	err := builder.Load("config.json")
 	if err != nil {
 		panic(err)
 	}

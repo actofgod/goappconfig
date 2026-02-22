@@ -20,6 +20,7 @@ type propertyImpl struct {
 	path   []int
 	name   string
 	tags   map[string]string
+	kind   reflect.Kind
 }
 
 func newProperty(parent *propertyImpl, field reflect.StructField) *propertyImpl {
@@ -38,11 +39,17 @@ func newProperty(parent *propertyImpl, field reflect.StructField) *propertyImpl 
 		path = append(path, parent.path...)
 	}
 	path = append(path, field.Index...)
+	kind := field.Type.Kind()
+	if kind == reflect.Pointer {
+		kind = field.Type.Elem().Kind()
+	}
+	// TODO: read field comment to put it into cli argument description
 	return &propertyImpl{
 		parent: parent,
 		path:   path,
 		name:   field.Name,
 		tags:   tags,
+		kind:   kind,
 	}
 }
 

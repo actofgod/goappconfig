@@ -7,10 +7,14 @@ import (
 	"io"
 	"os"
 	"reflect"
+	"strconv"
 )
 
 type Builder[T any] interface {
+	// With method applies option to current builder config.
 	With(option BuilderOption) Builder[T]
+
+	// Load loads configuration form fileName using decoder configured via With method. JSON decoder used by default.
 	Load(fileName string) error
 	Build() (T, error)
 	ApplyTo(config *T) error
@@ -39,31 +43,13 @@ func NewBuilder[T any](opts ...BuilderOption) Builder[T] {
 	return result
 }
 
-func buildPropertyList(t reflect.Type, parent *propertyImpl) []*propertyImpl {
-	if t.Kind() == reflect.Pointer {
-		t = t.Elem()
-	}
-	count := t.NumField()
-	props := make([]*propertyImpl, 0, count)
-	for i := 0; i < count; i++ {
-		var field = t.Field(i)
-		switch field.Type.Kind() {
-		case reflect.Array, reflect.Slice, reflect.Struct, reflect.Pointer:
-			local := newProperty(parent, field)
-			p := buildPropertyList(field.Type, local)
-			props = append(props, p...)
-		default:
-			props = append(props, newProperty(parent, field))
-		}
-	}
-	return props
-}
-
+// With method applies option to current builder config
 func (b *builderImpl[T]) With(option BuilderOption) Builder[T] {
 	b.opts = option(b.opts)
 	return b
 }
 
+// Load loads configuration form fileName using decoder configured via With method. JSON decoder used by default.
 func (b *builderImpl[T]) Load(fileName string) error {
 	s, err := os.Stat(fileName)
 	if err != nil {
@@ -89,13 +75,6 @@ func (b *builderImpl[T]) Load(fileName string) error {
 	return nil
 }
 
-func (b *builderImpl[T]) getDecoder(reader io.Reader) Decoder {
-	if b.opts.fileDecoder != nil {
-		return b.opts.fileDecoder(reader)
-	}
-	return json.NewDecoder(reader)
-}
-
 func (b *builderImpl[T]) Build() (T, error) {
 	var config T
 	err := b.ApplyTo(&config)
@@ -119,6 +98,33 @@ func (b *builderImpl[T]) ApplyTo(config *T) error {
 		}
 	}
 	return nil
+}
+
+func buildPropertyList(t reflect.Type, parent *propertyImpl) []*propertyImpl {
+	if t.Kind() == reflect.Pointer {
+		t = t.Elem()
+	}
+	count := t.NumField()
+	props := make([]*propertyImpl, 0, count)
+	for i := 0; i < count; i++ {
+		var field = t.Field(i)
+		switch field.Type.Kind() {
+		case reflect.Array, reflect.Slice, reflect.Struct, reflect.Pointer:
+			local := newProperty(parent, field)
+			p := buildPropertyList(field.Type, local)
+			props = append(props, p...)
+		default:
+			props = append(props, newProperty(parent, field))
+		}
+	}
+	return props
+}
+
+func (b *builderImpl[T]) getDecoder(reader io.Reader) Decoder {
+	if b.opts.fileDecoder != nil {
+		return b.opts.fileDecoder(reader)
+	}
+	return json.NewDecoder(reader)
 }
 
 func (b *builderImpl[T]) applyEnvironmentVariables(config *T) error {
@@ -148,21 +154,48 @@ func (b *builderImpl[T]) parseCliArguments(config *T, cliArgs []string, useFlags
 }
 
 func (b *builderImpl[T]) parseCliFlagArguments(rv reflect.Value, cliArgs []string) error {
+	var set *flag.FlagSet
+	if len(os.Args) > 0 {
+		set = flag.NewFlagSet(os.Args[0], flag.ExitOnError)
+	} else {
+		set = flag.NewFlagSet("", flag.ExitOnError)
+	}
 	for _, v := range b.properties {
 		for _, arg := range v.getCliArgumentNames() {
-			flag.CommandLine.String(arg, "", "")
+			switch v.kind {
+			case reflect.Int:
+				set.Int(arg, 0, v.name)
+			case reflect.Bool:
+				set.Bool(arg, false, v.name)
+			case reflect.Float64:
+				set.Float64(arg, 0, v.name)
+			default:
+				set.String(arg, "", v.name)
+			}
 		}
 	}
-	err := flag.CommandLine.Parse(cliArgs)
+	err := set.Parse(cliArgs)
 	if err != nil {
 		return err
 	}
 	for _, v := range b.properties {
 		for _, arg := range v.getCliArgumentNames() {
-			f := flag.CommandLine.Lookup(arg)
+			f := set.Lookup(arg)
 			if f != nil && f.Value.String() != "" {
-				value := reflect.ValueOf(f.Value.String())
-				rv.FieldByIndex(v.path).Set(value)
+				switch v.kind {
+				case reflect.Int:
+					val, _ := strconv.ParseInt(f.Value.String(), 10, 64)
+					rv.FieldByIndex(v.path).SetInt(val)
+				case reflect.Bool:
+					val, _ := strconv.ParseBool(f.Value.String())
+					rv.FieldByIndex(v.path).SetBool(val)
+				case reflect.Float64:
+					val, _ := strconv.ParseFloat(f.Value.String(), 64)
+					rv.FieldByIndex(v.path).SetFloat(val)
+				default:
+					value := reflect.ValueOf(f.Value.String())
+					rv.FieldByIndex(v.path).Set(value)
+				}
 				break
 			}
 		}
