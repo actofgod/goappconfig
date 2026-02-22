@@ -88,8 +88,6 @@ func (b *builderImpl[T]) ApplyTo(config *T) error {
 		if err != nil {
 			return err
 		}
-	} else {
-		// TODO: add cli arguments parsing
 	}
 	if b.opts.applyEnv {
 		err := b.applyEnvironmentVariables(config)
@@ -150,7 +148,7 @@ func (b *builderImpl[T]) parseCliArguments(config *T, cliArgs []string, useFlags
 	if useFlags {
 		return b.parseCliFlagArguments(rv, cliArgs)
 	}
-	return nil
+	return b.parseCliNaiveArguments(rv, cliArgs)
 }
 
 func (b *builderImpl[T]) parseCliFlagArguments(rv reflect.Value, cliArgs []string) error {
@@ -201,4 +199,8 @@ func (b *builderImpl[T]) parseCliFlagArguments(rv reflect.Value, cliArgs []strin
 		}
 	}
 	return nil
+}
+
+func (b *builderImpl[T]) parseCliNaiveArguments(rv reflect.Value, cliArgs []string) error {
+	return fmt.Errorf("not implemented")
 }
