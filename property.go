@@ -33,9 +33,14 @@ func newProperty(parent *propertyImpl, field reflect.StructField) *propertyImpl 
 			}
 		}
 	}
+	var path []int
+	if parent != nil {
+		path = append(path, parent.path...)
+	}
+	path = append(path, field.Index...)
 	return &propertyImpl{
 		parent: parent,
-		path:   field.Index,
+		path:   path,
 		name:   field.Name,
 		tags:   tags,
 	}

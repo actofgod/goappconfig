@@ -26,12 +26,7 @@ type builderImpl[T any] struct {
 func NewBuilder[T any](opts ...BuilderOption) Builder[T] {
 	var c T
 	r := reflect.TypeOf(c)
-	count := r.NumField()
-	props := make([]*propertyImpl, 0, count)
-	for i := 0; i < count; i++ {
-		var field = r.Field(i)
-		props = append(props, newProperty(nil, field))
-	}
+	props := buildPropertyList(r, nil)
 	result := &builderImpl[T]{
 		config:     c,
 		typ:        r,
@@ -42,6 +37,26 @@ func NewBuilder[T any](opts ...BuilderOption) Builder[T] {
 		result.With(option)
 	}
 	return result
+}
+
+func buildPropertyList(t reflect.Type, parent *propertyImpl) []*propertyImpl {
+	if t.Kind() == reflect.Pointer {
+		t = t.Elem()
+	}
+	count := t.NumField()
+	props := make([]*propertyImpl, 0, count)
+	for i := 0; i < count; i++ {
+		var field = t.Field(i)
+		switch field.Type.Kind() {
+		case reflect.Array, reflect.Slice, reflect.Struct, reflect.Pointer:
+			local := newProperty(parent, field)
+			p := buildPropertyList(field.Type, local)
+			props = append(props, p...)
+		default:
+			props = append(props, newProperty(parent, field))
+		}
+	}
+	return props
 }
 
 func (b *builderImpl[T]) With(option BuilderOption) Builder[T] {
@@ -93,6 +108,31 @@ func (b *builderImpl[T]) ApplyTo(config *T) error {
 		err := b.parseCliArguments(config, b.opts.cliArgs, b.opts.useFlags)
 		if err != nil {
 			return err
+		}
+	} else {
+		// TODO: add cli arguments parsing
+	}
+	if b.opts.applyEnv {
+		err := b.applyEnvironmentVariables(config)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (b *builderImpl[T]) applyEnvironmentVariables(config *T) error {
+	rv := reflect.ValueOf(config)
+	if rv.Kind() == reflect.Pointer {
+		rv = rv.Elem()
+	}
+	for _, v := range b.properties {
+		variable := v.getEnvVariable()
+		if len(variable) > 0 {
+			value, ok := os.LookupEnv(variable)
+			if ok {
+				rv.FieldByIndex(v.path).SetString(value)
+			}
 		}
 	}
 	return nil
