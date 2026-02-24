@@ -2,4 +2,8 @@
 <config>
   <inputFile>source.txt</inputFile>
   <outputFile>destination.txt</outputFile>
+  <config>
+    <maxFileSize>1234</maxFileSize>
+    <fileFormat>xml</fileFormat>
+  </config>
 </config>

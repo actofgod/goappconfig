@@ -3,11 +3,13 @@ package goappconfig
 import (
 	"io"
 	"os"
+	"strings"
 )
 
 const defaultMaxConfigFileSize int64 = 1024 * 1024 * 10
 
 type Options struct {
+	configFileArgs    []string
 	cliArgs           []string
 	useFlags          bool
 	applyEnv          bool
@@ -65,6 +67,25 @@ func ByteArrayDecoder(decoder ByteArrayDecoderFunc) BuilderOption {
 	return func(opts Options) Options {
 		opts.fileDecoder = func(reader io.Reader) Decoder {
 			return NewBufferedDecoder(reader, decoder)
+		}
+		return opts
+	}
+}
+
+func ConfigFileArguments(argumentName string, argumentNames ...string) BuilderOption {
+	return func(opts Options) Options {
+		if len(argumentNames) == 0 {
+			opts.configFileArgs = strings.Split(argumentName, ",")
+		} else {
+			opts.configFileArgs = make([]string, 0, len(argumentNames)+1)
+			if len(argumentName) > 0 {
+				opts.configFileArgs = append(opts.configFileArgs, argumentName)
+			}
+			for _, arg := range argumentNames {
+				if len(argumentName) > 0 {
+					opts.configFileArgs = append(opts.configFileArgs, arg)
+				}
+			}
 		}
 		return opts
 	}
