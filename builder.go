@@ -143,20 +143,23 @@ func (b *builderImpl[T]) applyEnvironmentVariables(config *T) error {
 }
 
 func (b *builderImpl[T]) parseCliArguments(config *T, cliArgs []string, useFlags bool) error {
-	rv := reflect.ValueOf(config)
-	rv = rv.Elem()
 	if useFlags {
-		return b.parseCliFlagArguments(rv, cliArgs)
+		return b.parseCliFlagArguments(config, cliArgs)
 	}
-	return b.parseCliNaiveArguments(rv, cliArgs)
+	return b.parseCliNaiveArguments(config, cliArgs)
 }
 
-func (b *builderImpl[T]) parseCliFlagArguments(rv reflect.Value, cliArgs []string) error {
+func (b *builderImpl[T]) parseCliFlagArguments(config *T, cliArgs []string) error {
 	var set *flag.FlagSet
 	if len(os.Args) > 0 {
-		set = flag.NewFlagSet(os.Args[0], flag.ExitOnError)
+		set = flag.NewFlagSet(os.Args[0], flag.ContinueOnError)
 	} else {
-		set = flag.NewFlagSet("", flag.ExitOnError)
+		set = flag.NewFlagSet("", flag.ContinueOnError)
+	}
+	if len(b.opts.configFileArgs) > 0 {
+		for _, arg := range b.opts.configFileArgs {
+			set.String(arg, "", "configuration file name")
+		}
 	}
 	for _, v := range b.properties {
 		for _, arg := range v.getCliArgumentNames() {
@@ -175,6 +178,23 @@ func (b *builderImpl[T]) parseCliFlagArguments(rv reflect.Value, cliArgs []strin
 	err := set.Parse(cliArgs)
 	if err != nil {
 		return err
+	}
+	if len(b.opts.configFileArgs) > 0 {
+		for _, arg := range b.opts.configFileArgs {
+			f := set.Lookup(arg)
+			if f != nil && f.Value.String() != "" {
+				err = b.Load(f.Value.String())
+				if err != nil {
+					return err
+				}
+				break
+			}
+		}
+	}
+	*config = b.config
+	rv := reflect.ValueOf(config)
+	if rv.Kind() == reflect.Pointer {
+		rv = rv.Elem()
 	}
 	for _, v := range b.properties {
 		for _, arg := range v.getCliArgumentNames() {
@@ -201,6 +221,6 @@ func (b *builderImpl[T]) parseCliFlagArguments(rv reflect.Value, cliArgs []strin
 	return nil
 }
 
-func (b *builderImpl[T]) parseCliNaiveArguments(rv reflect.Value, cliArgs []string) error {
+func (b *builderImpl[T]) parseCliNaiveArguments(config *T, cliArgs []string) error {
 	return fmt.Errorf("not implemented")
 }

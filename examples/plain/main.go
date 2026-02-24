@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"os"
 
 	cfg "github.com/actofgod/goappconfig"
 )
@@ -16,11 +15,7 @@ type PlainConfig struct {
 
 func main() {
 	builder := cfg.NewBuilder[PlainConfig]()
-	builder = builder.With(cfg.CliArguments(os.Args[1:])).With(cfg.DisableEnv())
-	err := builder.Load("config.json")
-	if err != nil {
-		panic(err)
-	}
+	builder = builder.With(cfg.ConfigFileArguments("config,c"))
 	config, err := builder.Build()
 	if err != nil {
 		panic(err)
