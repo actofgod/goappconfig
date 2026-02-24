@@ -77,9 +77,15 @@ func ConfigFileArguments(argumentName string, argumentNames ...string) BuilderOp
 		if len(argumentNames) == 0 {
 			opts.configFileArgs = strings.Split(argumentName, ",")
 		} else {
-			opts.configFileArgs = make([]string, len(argumentNames)+1)
-			opts.configFileArgs = append(opts.configFileArgs, argumentName)
-			opts.configFileArgs = append(opts.configFileArgs, argumentNames...)
+			opts.configFileArgs = make([]string, 0, len(argumentNames)+1)
+			if len(argumentName) > 0 {
+				opts.configFileArgs = append(opts.configFileArgs, argumentName)
+			}
+			for _, arg := range argumentNames {
+				if len(argumentName) > 0 {
+					opts.configFileArgs = append(opts.configFileArgs, arg)
+				}
+			}
 		}
 		return opts
 	}

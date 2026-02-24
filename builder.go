@@ -150,6 +150,19 @@ func (b *builderImpl[T]) parseCliArguments(config *T, cliArgs []string, useFlags
 }
 
 func (b *builderImpl[T]) parseCliFlagArguments(config *T, cliArgs []string) error {
+	set := b.configureFlagSet()
+	err := set.Parse(cliArgs)
+	if err != nil {
+		return err
+	}
+	err = b.loadFromConfiguredFile(set)
+	if err != nil {
+		return err
+	}
+	return b.loadFromFlagSet(set, config)
+}
+
+func (b *builderImpl[T]) configureFlagSet() *flag.FlagSet {
 	var set *flag.FlagSet
 	if len(os.Args) > 0 {
 		set = flag.NewFlagSet(os.Args[0], flag.ContinueOnError)
@@ -175,22 +188,23 @@ func (b *builderImpl[T]) parseCliFlagArguments(config *T, cliArgs []string) erro
 			}
 		}
 	}
-	err := set.Parse(cliArgs)
-	if err != nil {
-		return err
+	return set
+}
+
+func (b *builderImpl[T]) loadFromConfiguredFile(set *flag.FlagSet) error {
+	if len(b.opts.configFileArgs) == 0 {
+		return nil
 	}
-	if len(b.opts.configFileArgs) > 0 {
-		for _, arg := range b.opts.configFileArgs {
-			f := set.Lookup(arg)
-			if f != nil && f.Value.String() != "" {
-				err = b.Load(f.Value.String())
-				if err != nil {
-					return err
-				}
-				break
-			}
+	for _, arg := range b.opts.configFileArgs {
+		f := set.Lookup(arg)
+		if f != nil && f.Value.String() != "" {
+			return b.Load(f.Value.String())
 		}
 	}
+	return nil
+}
+
+func (b *builderImpl[T]) loadFromFlagSet(set *flag.FlagSet, config *T) error {
 	*config = b.config
 	rv := reflect.ValueOf(config)
 	if rv.Kind() == reflect.Pointer {
