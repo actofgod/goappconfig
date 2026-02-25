@@ -73,20 +73,22 @@ func ByteArrayDecoder(decoder ByteArrayDecoderFunc) BuilderOption {
 }
 
 func ConfigFileArguments(argumentName string, argumentNames ...string) BuilderOption {
-	return func(opts Options) Options {
-		if len(argumentNames) == 0 {
-			opts.configFileArgs = strings.Split(argumentName, ",")
-		} else {
-			opts.configFileArgs = make([]string, 0, len(argumentNames)+1)
+	var arguments []string
+	if len(argumentNames) == 0 {
+		arguments = strings.Split(argumentName, ",")
+	} else {
+		arguments = make([]string, 0, len(argumentNames)+1)
+		if len(argumentName) > 0 {
+			arguments = append(arguments, argumentName)
+		}
+		for _, arg := range argumentNames {
 			if len(argumentName) > 0 {
-				opts.configFileArgs = append(opts.configFileArgs, argumentName)
-			}
-			for _, arg := range argumentNames {
-				if len(argumentName) > 0 {
-					opts.configFileArgs = append(opts.configFileArgs, arg)
-				}
+				arguments = append(arguments, arg)
 			}
 		}
+	}
+	return func(opts Options) Options {
+		opts.configFileArgs = arguments
 		return opts
 	}
 }

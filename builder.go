@@ -2,12 +2,10 @@ package goappconfig
 
 import (
 	"encoding/json"
-	"flag"
 	"fmt"
 	"io"
 	"os"
 	"reflect"
-	"strconv"
 )
 
 type Builder[T any] interface {
@@ -150,89 +148,19 @@ func (b *builderImpl[T]) parseCliArguments(config *T, cliArgs []string, useFlags
 }
 
 func (b *builderImpl[T]) parseCliFlagArguments(config *T, cliArgs []string) error {
-	set := b.configureFlagSet()
-	err := set.Parse(cliArgs)
+	parser := newCliConfigFlag[T](b.opts.configFileArgs, b.properties)
+	fileName, err := parser.parse(cliArgs)
 	if err != nil {
 		return err
 	}
-	err = b.loadFromConfiguredFile(set)
-	if err != nil {
-		return err
-	}
-	return b.loadFromFlagSet(set, config)
-}
-
-func (b *builderImpl[T]) configureFlagSet() *flag.FlagSet {
-	var set *flag.FlagSet
-	if len(os.Args) > 0 {
-		set = flag.NewFlagSet(os.Args[0], flag.ContinueOnError)
-	} else {
-		set = flag.NewFlagSet("", flag.ContinueOnError)
-	}
-	if len(b.opts.configFileArgs) > 0 {
-		for _, arg := range b.opts.configFileArgs {
-			set.String(arg, "", "configuration file name")
+	if len(fileName) > 0 {
+		err = b.Load(fileName)
+		if err != nil {
+			return err
 		}
+		*config = b.config
 	}
-	for _, v := range b.properties {
-		for _, arg := range v.getCliArgumentNames() {
-			switch v.kind {
-			case reflect.Int:
-				set.Int(arg, 0, v.name)
-			case reflect.Bool:
-				set.Bool(arg, false, v.name)
-			case reflect.Float64:
-				set.Float64(arg, 0, v.name)
-			default:
-				set.String(arg, "", v.name)
-			}
-		}
-	}
-	return set
-}
-
-func (b *builderImpl[T]) loadFromConfiguredFile(set *flag.FlagSet) error {
-	if len(b.opts.configFileArgs) == 0 {
-		return nil
-	}
-	for _, arg := range b.opts.configFileArgs {
-		f := set.Lookup(arg)
-		if f != nil && f.Value.String() != "" {
-			return b.Load(f.Value.String())
-		}
-	}
-	return nil
-}
-
-func (b *builderImpl[T]) loadFromFlagSet(set *flag.FlagSet, config *T) error {
-	*config = b.config
-	rv := reflect.ValueOf(config)
-	if rv.Kind() == reflect.Pointer {
-		rv = rv.Elem()
-	}
-	for _, v := range b.properties {
-		for _, arg := range v.getCliArgumentNames() {
-			f := set.Lookup(arg)
-			if f != nil && f.Value.String() != "" {
-				switch v.kind {
-				case reflect.Int:
-					val, _ := strconv.ParseInt(f.Value.String(), 10, 64)
-					rv.FieldByIndex(v.path).SetInt(val)
-				case reflect.Bool:
-					val, _ := strconv.ParseBool(f.Value.String())
-					rv.FieldByIndex(v.path).SetBool(val)
-				case reflect.Float64:
-					val, _ := strconv.ParseFloat(f.Value.String(), 64)
-					rv.FieldByIndex(v.path).SetFloat(val)
-				default:
-					value := reflect.ValueOf(f.Value.String())
-					rv.FieldByIndex(v.path).Set(value)
-				}
-				break
-			}
-		}
-	}
-	return nil
+	return parser.applyTo(config)
 }
 
 func (b *builderImpl[T]) parseCliNaiveArguments(config *T, cliArgs []string) error {
