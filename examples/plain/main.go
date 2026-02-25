@@ -11,6 +11,10 @@ type PlainConfig struct {
 	OutputFile string `json:"output_file" yaml:"output-file" arg:"output-file" short:"o" env:"OUTPUT_FILE"`
 	// IntValue parameter description
 	IntValue int `json:"int_value"`
+	// UIntValue parameter description
+	UIntValue uint16 `json:"uint_value" arg:"uint16"`
+	// BoolValue parameter description
+	BoolValue bool `json:"bool_value"`
 }
 
 func main() {
