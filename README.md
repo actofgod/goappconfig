@@ -23,3 +23,20 @@ func main() {
 	// now config initialized
 }
 ```
+or
+```go
+import "github.com/actofgod/goappconfig"
+
+type AppConfig struct {
+	// ...
+}
+
+func main() {
+	builder := goappconfig.NewBuilder[AppConfig](goappconfig.ConfigFileArguments("config"))
+	config, err := builder.Build()
+	if err != nil {
+		panic(err)
+	}
+	// now config initialized
+}
+```
